@@ -1,5 +1,6 @@
 namespace Events;
 
+using System.Security.Cryptography;
 using EventName = System.String;
 
 [Flags]
@@ -32,6 +33,34 @@ public sealed class EventCentral
 
     private readonly Dictionary<EventName, List<Subscription>> _subscribers = 
         new Dictionary<EventName, List<Subscription>>();
+
+    public Action<Delegate> RunOnUiThread { get; set; } = _ => throw new InvalidOperationException("RunOnUiThread action not set");
+
+    private async Task RunOnUiThreadAsync(Task task)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+
+        RunOnUiThread(() =>
+        {
+            task.ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                {
+                    tcs.SetException(t.Exception!.InnerException!);
+                }
+                else if (t.IsCanceled)
+                {
+                    tcs.SetCanceled();
+                }
+                else
+                {
+                    tcs.SetResult(true);
+                }
+            });
+        });
+
+        await tcs.Task;
+    }
 
     public void Subscribe<TEvent>(Action<TEvent> handler, SubscriptionOptions options = SubscriptionOptions.None)
     {
@@ -67,18 +96,28 @@ public sealed class EventCentral
 
         var eventName = typeof(TEvent).Name;
 
-        if (_subscribers.TryGetValue(eventName, out var handlers))
+        if (!_subscribers.TryGetValue(eventName, out var handlers))
         {
-            foreach (var subscription in handlers)
+            return;
+        }
+        
+        foreach (var subscription in handlers)
+        {
+            if (subscription.Options.HasFlag(SubscriptionOptions.Async) && subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
             {
-                if (subscription.Options.HasFlag(SubscriptionOptions.Async))
-                {
-                    Task.Run(() => subscription.Handler.DynamicInvoke(@event));
-                }
-                else
-                {
-                    subscription.Handler.DynamicInvoke(@event);
-                }
+                Task.Run(() => RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event)));
+            }
+            else if (subscription.Options.HasFlag(SubscriptionOptions.Async))
+            {
+                Task.Run(() => subscription.Handler.DynamicInvoke(@event));
+            }
+            else if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
+            {
+                RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event));
+            }
+            else
+            {
+                subscription.Handler.DynamicInvoke(@event);
             }
         }
     }
@@ -89,18 +128,28 @@ public sealed class EventCentral
 
         var eventName = typeof(TEvent).Name;
 
-        if (_subscribers.TryGetValue(eventName, out var handlers))
+        if (!_subscribers.TryGetValue(eventName, out var handlers))
         {
-            foreach (var subscription in handlers)
+            return;
+        }
+
+        foreach (var subscription in handlers)
+        {
+            if (subscription.Options.HasFlag(SubscriptionOptions.Async) && subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
             {
-                if (subscription.Options.HasFlag(SubscriptionOptions.Async))
-                {
-                    await (Task)subscription.Handler.DynamicInvoke(@event)!;
-                }
-                else
-                {
-                    subscription.Handler.DynamicInvoke(@event);
-                }
+                await RunOnUiThreadAsync((Task)subscription.Handler.DynamicInvoke(@event)!);
+            }
+            else if (subscription.Options.HasFlag(SubscriptionOptions.Async))
+            {
+                await (Task)subscription.Handler.DynamicInvoke(@event)!;
+            }
+            else if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
+            {
+                RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event));
+            }
+            else
+            {
+                subscription.Handler.DynamicInvoke(@event);
             }
         }
     }
