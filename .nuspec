@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>Waldenware.Events</id>
+    <version>0.0.1</version>
+    <authors>Philipp Brendel</authors>
+    <owners>Philipp Brendel</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>An event dispatch mechanism.</description>
+    <releaseNotes>Initial release</releaseNotes>
+  </metadata>
+  <files>
+    <file src="bin\Release\net8.0\Waldenware.Events.dll" target="lib\net8.0\" />
+  </files>
+</package>

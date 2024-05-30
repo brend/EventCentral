@@ -1,7 +1,6 @@
-namespace Events;
+namespace Waldenware.Events;
 
-using System.Security.Cryptography;
-using EventName = System.String;
+using EventName = string;
 
 [Flags]
 public enum SubscriptionOptions 
