@@ -1,81 +1,117 @@
 namespace Events;
 
+using EventName = System.String;
+
+[Flags]
+public enum SubscriptionOptions 
+{
+    None = 0,
+    Async = 1,
+    RunOnUiThread = 2,
+}
+
+class Subscription
+{
+    public Type EventType { get; }
+    public Delegate Handler { get; }
+    public SubscriptionOptions Options { get; }
+
+    public Subscription(Type eventType, Delegate handler, SubscriptionOptions options)
+    {
+        EventType = eventType;
+        Handler = handler;
+        Options = options;
+    }
+}
+
 public sealed class EventCentral
 {
     private static readonly Lazy<EventCentral> _instance = new(() => new EventCentral());
     public static EventCentral Instance => _instance.Value;
     private EventCentral() { }
 
-    private readonly Dictionary<Type, List<object>> _registry = [];
+    private readonly Dictionary<EventName, List<Subscription>> _subscribers = 
+        new Dictionary<EventName, List<Subscription>>();
 
-    public void Subscribe<TEvent>(Action<TEvent> handler)
+    public void Subscribe<TEvent>(Action<TEvent> handler, SubscriptionOptions options = SubscriptionOptions.None)
     {
-        if (!_registry.TryGetValue(typeof(TEvent), out var handlers))
+        var eventName = typeof(TEvent).Name;
+
+        if (!_subscribers.TryGetValue(eventName, out var handlers))
         {
-            handlers = [];
-            _registry.Add(typeof(TEvent), handlers);
+            handlers = new List<Subscription>();
+            _subscribers.Add(eventName, handlers);
         }
 
-        handlers.Add(handler);
+        handlers.Add(new Subscription(typeof(TEvent), handler, options));
     }
 
-    public void SubscribeAsync<TEvent>(Func<TEvent, Task> handler)
+    public void SubscribeAsync<TEvent>(Func<TEvent, Task> handler, SubscriptionOptions options = SubscriptionOptions.Async)
     {
-        if (!_registry.TryGetValue(typeof(TEvent), out var handlers))
+        var eventName = typeof(TEvent).Name;
+        
+        options |= SubscriptionOptions.Async;
+
+        if (!_subscribers.TryGetValue(eventName, out var handlers))
         {
-            handlers = [];
-            _registry.Add(typeof(TEvent), handlers);
+            handlers = new List<Subscription>();
+            _subscribers.Add(eventName, handlers);
         }
 
-        handlers.Add(handler);
+        handlers.Add(new Subscription(typeof(TEvent), handler, options));
     }
 
     public void Publish<TEvent>(TEvent @event)
     {
-        if (_registry.TryGetValue(typeof(TEvent), out var handlers))
-        {
-            foreach (var handler in handlers.OfType<Action<TEvent>>())
-            {
-                handler(@event);
-            }
+        ArgumentNullException.ThrowIfNull(@event);
 
-            foreach (var asyncHandler in handlers.OfType<Func<TEvent, Task>>())
+        var eventName = typeof(TEvent).Name;
+
+        if (_subscribers.TryGetValue(eventName, out var handlers))
+        {
+            foreach (var subscription in handlers)
             {
-                asyncHandler(@event).ConfigureAwait(false);
+                if (subscription.Options.HasFlag(SubscriptionOptions.Async))
+                {
+                    Task.Run(() => subscription.Handler.DynamicInvoke(@event));
+                }
+                else
+                {
+                    subscription.Handler.DynamicInvoke(@event);
+                }
             }
         }
     }
 
     public async Task PublishAsync<TEvent>(TEvent @event)
     {
-        if (_registry.TryGetValue(typeof(TEvent), out var handlers))
+        ArgumentNullException.ThrowIfNull(@event);
+
+        var eventName = typeof(TEvent).Name;
+
+        if (_subscribers.TryGetValue(eventName, out var handlers))
         {
-            var tasks = handlers.OfType<Func<TEvent, Task>>()
-                                .Select(handler => handler(@event))
-                                .ToList();
-
-            foreach (var handler in handlers.OfType<Action<TEvent>>())
+            foreach (var subscription in handlers)
             {
-                handler(@event);
+                if (subscription.Options.HasFlag(SubscriptionOptions.Async))
+                {
+                    await (Task)subscription.Handler.DynamicInvoke(@event)!;
+                }
+                else
+                {
+                    subscription.Handler.DynamicInvoke(@event);
+                }
             }
-
-            await Task.WhenAll(tasks);
         }
     }
 
     public void Unsubscribe<TEvent>(Action<TEvent> handler)
     {
-        if (_registry.TryGetValue(typeof(TEvent), out var handlers))
-        {
-            handlers.Remove(handler);
-        }
-    }
+        var eventName = typeof(TEvent).Name;
 
-    public void UnsubscribeAsync<TEvent>(Func<TEvent, Task> handler)
-    {
-        if (_registry.TryGetValue(typeof(TEvent), out var handlers))
+        if (_subscribers.TryGetValue(eventName, out var handlers))
         {
-            handlers.Remove(handler);
+            handlers.RemoveAll(s => ((MulticastDelegate)s.Handler).Equals(handler));
         }
     }
 }
