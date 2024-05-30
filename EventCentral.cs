@@ -6,7 +6,7 @@ public sealed class EventCentral
     public static EventCentral Instance => _instance.Value;
     private EventCentral() { }
 
-    private readonly Dictionary<Type, List<object>> _registry = new();
+    private readonly Dictionary<Type, List<object>> _registry = [];
 
     public void Subscribe<TEvent>(Action<TEvent> handler)
     {
@@ -23,7 +23,7 @@ public sealed class EventCentral
     {
         if (!_registry.TryGetValue(typeof(TEvent), out var handlers))
         {
-            handlers = new List<object>();
+            handlers = [];
             _registry.Add(typeof(TEvent), handlers);
         }
 
