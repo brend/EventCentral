@@ -34,39 +34,7 @@ public sealed class EventCentral
 
     public Action<Delegate> RunOnUiThread { get; set; } = _ => throw new InvalidOperationException("RunOnUiThread action not set");
 
-    private async Task RunOnUiThreadAsync(Task task)
-    {
-        var tcs = new TaskCompletionSource<bool>();
-
-        RunOnUiThread(() =>
-        {
-            task.ContinueWith(t =>
-            {
-                if (t.IsFaulted)
-                {
-                    tcs.SetException(t.Exception!.InnerException!);
-                }
-                else if (t.IsCanceled)
-                {
-                    tcs.SetCanceled();
-                }
-                else
-                {
-                    tcs.SetResult(true);
-                }
-            });
-        });
-
-        await tcs.Task;
-    }
-
     public void Subscribe<TEvent>(Action<TEvent> handler, EventName? eventName = null, SubscriptionOptions options = SubscriptionOptions.None)
-    {
-        eventName ??= typeof(TEvent).Name;
-        SubscribeInternal(eventName, typeof(TEvent), handler, options);
-    }
-
-    public void Subscribe<TEvent>(Func<TEvent, Task> handler, EventName? eventName, SubscriptionOptions options = SubscriptionOptions.None)
     {
         eventName ??= typeof(TEvent).Name;
         SubscribeInternal(eventName, typeof(TEvent), handler, options);
@@ -119,30 +87,6 @@ public sealed class EventCentral
         
         foreach (var subscription in handlers)
         {
-            switch (subscription.Handler)
-            {
-                case Action<TEvent> action:
-                    if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
-                    {
-                        RunOnUiThread(() => action(@event));
-                    }
-                    else
-                    {
-                        action(@event);
-                    }
-                    break;
-                case Func<TEvent, Task> func:
-                    if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
-                    {
-                        RunOnUiThreadAsync(func(@event)).Wait();
-                    }
-                    else
-                    {
-                        func(@event).Wait();
-                    }
-                    break;
-            }
-
             if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
             {
                 RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event));
@@ -150,45 +94,6 @@ public sealed class EventCentral
             else
             {
                 subscription.Handler.DynamicInvoke(@event);
-            }
-        }
-    }
-
-    public async Task PublishAsync<TEvent>(TEvent @event, EventName? eventName = null)
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-
-        eventName = typeof(TEvent).Name;
-
-        if (!_subscribers.TryGetValue(eventName, out var handlers))
-        {
-            return;
-        }
-
-        foreach (var subscription in handlers)
-        {
-            switch (subscription.Handler)
-            {
-                case Action<TEvent> action:
-                    if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
-                    {
-                        RunOnUiThread(() => action(@event));
-                    }
-                    else
-                    {
-                        action(@event);
-                    }
-                    break;
-                case Func<TEvent, Task> func:
-                    if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
-                    {
-                        await RunOnUiThreadAsync(func(@event));
-                    }
-                    else
-                    {
-                        await func(@event);
-                    }
-                    break;
             }
         }
     }
