@@ -27,6 +27,7 @@ public sealed class EventCentral
 {
     private static readonly Lazy<EventCentral> _defaultInstance = new(() => new EventCentral());
     public static EventCentral Default => _defaultInstance.Value;
+    private readonly object _lock = new object();
     public EventCentral() { }
 
     internal readonly Dictionary<EventName, List<Subscription>> _subscribers = 
@@ -46,38 +47,47 @@ public sealed class EventCentral
         Delegate handler, 
         SubscriptionOptions options)
     {
-        if (!_subscribers.TryGetValue(eventName, out var handlers))
+        lock (_lock)
         {
-            handlers = new List<Subscription>();
-            _subscribers.Add(eventName, handlers);
-        }
+            if (!_subscribers.TryGetValue(eventName, out var handlers))
+            {
+                handlers = new List<Subscription>();
+                _subscribers.Add(eventName, handlers);
+            }
 
-        handlers.Add(new Subscription(eventType, handler, options));
+            handlers.Add(new Subscription(eventType, handler, options));
+        }
     }
 
     public void Unsubscribe<TEvent>(Action<TEvent> handler)
     {
         var eventName = typeof(TEvent).Name;
 
-        if (_subscribers.TryGetValue(eventName, out var handlers))
+        lock (_lock)
         {
-            handlers.RemoveAll(s => ((MulticastDelegate)s.Handler).Equals(handler));
-            if (handlers.Count == 0)
+            if (_subscribers.TryGetValue(eventName, out var handlers))
             {
-                _subscribers.Remove(eventName);
+                handlers.RemoveAll(s => ((MulticastDelegate)s.Handler).Equals(handler));
+                if (handlers.Count == 0)
+                {
+                    _subscribers.Remove(eventName);
+                }
             }
         }
     }
 
     public void UnsubscribeAll(EventName? eventName = null)
     {
-        if (eventName != null)
+        lock (_lock)
         {
-            _subscribers.Remove(eventName);
-        }
-        else 
-        {
-            _subscribers.Clear();
+            if (eventName != null)
+            {
+                _subscribers.Remove(eventName);
+            }
+            else 
+            {
+                _subscribers.Clear();
+            }
         }
     }
 
@@ -89,28 +99,41 @@ public sealed class EventCentral
 
         eventName ??= typeof(TEvent).Name;
 
-        if (!_subscribers.TryGetValue(eventName, out var handlers))
+        List<Subscription> handlersToInvoke = new List<Subscription>();
+
+        // Lock around the retrieval of handlers to ensure the collection is not modified during publication
+        lock (_lock)
         {
-            return;
+            if (_subscribers.TryGetValue(eventName, out var handlers))
+            {
+                handlersToInvoke.AddRange(handlers);
+            }
         }
-        
-        foreach (var subscription in handlers)
+
+        // Invoke handlers outside of the lock to prevent deadlocks and to allow handlers to run concurrently
+        foreach (var subscription in handlersToInvoke)
         {
-            try 
+            try
             {
                 if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
                 {
-                    RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event));
+                    RunOnUiThread(() => InvokeHandler(subscription.Handler, @event));
                 }
                 else
                 {
-                    subscription.Handler.DynamicInvoke(@event);
+                    InvokeHandler(subscription.Handler, @event);
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error invoking event handler for event {eventName}: {ex}");
+                // Log or handle exceptions as necessary
             }
         }
     }
+
+    private void InvokeHandler(Delegate handler, object eventArgs)
+    {
+        handler.DynamicInvoke(eventArgs);
+    }
+
 }
