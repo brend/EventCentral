@@ -12,13 +12,13 @@ public enum SubscriptionOptions
 internal class Subscription
 {
     public Type EventType { get; }
-    public Delegate Handler { get; }
+    public WeakReference Handler { get; }
     public SubscriptionOptions Options { get; }
 
     public Subscription(Type eventType, Delegate handler, SubscriptionOptions options)
     {
         EventType = eventType;
-        Handler = handler;
+        Handler = new WeakReference(handler);
         Options = options;
     }
 }
@@ -67,7 +67,7 @@ public sealed class EventCentral
         {
             if (_subscribers.TryGetValue(eventName, out var handlers))
             {
-                handlers.RemoveAll(s => ((MulticastDelegate)s.Handler).Equals(handler));
+                handlers.RemoveAll(s => (s.Handler.Target as MulticastDelegate)?.Equals(handler) == true);
                 if (handlers.Count == 0)
                 {
                     _subscribers.Remove(eventName);
@@ -100,6 +100,7 @@ public sealed class EventCentral
         eventName ??= typeof(TEvent).Name;
 
         List<Subscription> handlersToInvoke = new List<Subscription>();
+        List<Subscription> expiredHandlers = new List<Subscription>();
 
         // Lock around the retrieval of handlers to ensure the collection is not modified during publication
         lock (_lock)
@@ -113,20 +114,39 @@ public sealed class EventCentral
         // Invoke handlers outside of the lock to prevent deadlocks and to allow handlers to run concurrently
         foreach (var subscription in handlersToInvoke)
         {
-            try
+            if (subscription.Handler.IsAlive && subscription.Handler.Target is Delegate handler)
             {
-                if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
+                try
                 {
-                    RunOnUiThread(() => InvokeHandler(subscription.Handler, @event));
+                    if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
+                    {
+                        RunOnUiThread(() => InvokeHandler(handler, @event));
+                    }
+                    else
+                    {
+                        InvokeHandler(handler, @event);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    InvokeHandler(subscription.Handler, @event);
+                    Console.Error.WriteLine($"Error invoking event handler: {ex}");
                 }
             }
-            catch (Exception ex)
+            else 
             {
-                // Log or handle exceptions as necessary
+                expiredHandlers.Add(subscription);
+            }
+        }
+
+        // Remove expired handlers
+        if (expiredHandlers.Count > 0)
+        {
+            lock (_lock)
+            {
+                foreach (var expiredHandler in expiredHandlers)
+                {
+                    _subscribers[eventName].Remove(expiredHandler);
+                }
             }
         }
     }
