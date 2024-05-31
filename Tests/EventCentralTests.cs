@@ -8,7 +8,7 @@ public class EventCentralTests
     public void TestSubscribe()
     {
         // Arrange
-        var eventCentral = EventCentral.Instance;
+        var eventCentral = EventCentral.Default;
         eventCentral.UnsubscribeAll();
 
         // Act
@@ -22,7 +22,7 @@ public class EventCentralTests
     public void TestUnsubscribe()
     {
         // Arrange
-        var eventCentral = EventCentral.Instance;
+        var eventCentral = EventCentral.Default;
         eventCentral.UnsubscribeAll();
         Action<int> handler = _ => {};
         eventCentral.Subscribe<int>(handler);
@@ -38,7 +38,7 @@ public class EventCentralTests
     public void TestPublish()
     {
         // Arrange
-        var eventCentral = EventCentral.Instance;
+        var eventCentral = EventCentral.Default;
         eventCentral.UnsubscribeAll();
         int x = 0;
         eventCentral.Subscribe((int i) => x = i);
@@ -54,7 +54,7 @@ public class EventCentralTests
     public void TestUnsubscribeAll()
     {
         // Arrange
-        var eventCentral = EventCentral.Instance;
+        var eventCentral = EventCentral.Default;
         eventCentral.UnsubscribeAll();
         eventCentral.Subscribe<int>(_ => {});
 

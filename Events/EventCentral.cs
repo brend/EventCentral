@@ -25,9 +25,9 @@ internal class Subscription
 
 public sealed class EventCentral
 {
-    private static readonly Lazy<EventCentral> _instance = new(() => new EventCentral());
-    public static EventCentral Instance => _instance.Value;
-    private EventCentral() { }
+    private static readonly Lazy<EventCentral> _defaultInstance = new(() => new EventCentral());
+    public static EventCentral Default => _defaultInstance.Value;
+    public EventCentral() { }
 
     internal readonly Dictionary<EventName, List<Subscription>> _subscribers = 
         new Dictionary<EventName, List<Subscription>>();
