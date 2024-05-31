@@ -29,7 +29,7 @@ public sealed class EventCentral
     public static EventCentral Instance => _instance.Value;
     private EventCentral() { }
 
-    private readonly Dictionary<EventName, List<Subscription>> _subscribers = 
+    internal readonly Dictionary<EventName, List<Subscription>> _subscribers = 
         new Dictionary<EventName, List<Subscription>>();
 
     public Action<Delegate> RunOnUiThread { get; set; } = _ => throw new InvalidOperationException("RunOnUiThread action not set");
@@ -94,7 +94,16 @@ public sealed class EventCentral
         if (_subscribers.TryGetValue(eventName, out var handlers))
         {
             handlers.RemoveAll(s => ((MulticastDelegate)s.Handler).Equals(handler));
+            if (handlers.Count == 0)
+            {
+                _subscribers.Remove(eventName);
+            }
         }
+    }
+
+    public void UnsubscribeAll()
+    {
+        _subscribers.Clear();
     }
 
     public void Publish<TEvent>(TEvent @event, EventName? eventName = null)
