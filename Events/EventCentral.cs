@@ -96,13 +96,20 @@ public sealed class EventCentral
         
         foreach (var subscription in handlers)
         {
-            if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
+            try 
             {
-                RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event));
+                if (subscription.Options.HasFlag(SubscriptionOptions.RunOnUiThread))
+                {
+                    RunOnUiThread(() => subscription.Handler.DynamicInvoke(@event));
+                }
+                else
+                {
+                    subscription.Handler.DynamicInvoke(@event);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                subscription.Handler.DynamicInvoke(@event);
+                Console.Error.WriteLine($"Error invoking event handler for event {eventName}: {ex}");
             }
         }
     }
