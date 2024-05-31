@@ -69,10 +69,19 @@ public sealed class EventCentral
         }
     }
 
-    public void UnsubscribeAll()
+    public void UnsubscribeAll(EventName? eventName = null)
     {
-        _subscribers.Clear();
+        if (eventName != null)
+        {
+            _subscribers.Remove(eventName);
+        }
+        else 
+        {
+            _subscribers.Clear();
+        }
     }
+
+    public void UnsubscribeAll<TEvent>() => UnsubscribeAll(typeof(TEvent).Name);
 
     public void Publish<TEvent>(TEvent @event, EventName? eventName = null)
     {
