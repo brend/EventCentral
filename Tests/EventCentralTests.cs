@@ -80,4 +80,24 @@ public class EventCentralTests
         // Assert
         Assert.Empty(eventCentral._subscribers);
     }
+
+    [Fact]
+    public void TestUnsubscribeScope()
+    {
+        // Arrange
+        var eventCentral = EventCentral.Default;
+        eventCentral.UnsubscribeAll();
+        int x = 0;
+        void Scoped()
+        {
+            eventCentral.Subscribe<int>(i => x = i);
+        }
+
+        // Act
+        Scoped();
+        eventCentral.Publish(17);
+
+        // Assert
+        Assert.Equal(17, x);
+    }
 }
