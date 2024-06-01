@@ -51,8 +51,9 @@ eventCentral.Subscribe(mouseEventHandler);
 // subscribe to mouse events by the name of "RightClickEvent"
 eventCentral.Subscribe(rightClickEventHandler, eventName: "RightClickEvent");
 
-// publish some events
-eventCentral.Publish(new MouseEvent { X = 17, Y = 4, Button = 1 }); // this will be handled only by mouseEventHandler
+// this will be handled only by mouseEventHandler
+eventCentral.Publish(new MouseEvent { X = 17, Y = 4, Button = 1 });
+// this will be handled only by rightClickEventHandler
 eventCentral.Publish(new MouseEvent { X = 32, Y = 8, Button = 2},
-  eventName: "RightClickEvent"); // this will be handled only by rightClickEventHandler
+  eventName: "RightClickEvent");
 ```
