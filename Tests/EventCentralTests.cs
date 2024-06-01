@@ -8,8 +8,7 @@ public class EventCentralTests
     public void TestSubscribe()
     {
         // Arrange
-        var eventCentral = EventCentral.Default;
-        eventCentral.UnsubscribeAll();
+        var eventCentral = new EventCentral();
 
         // Act
         eventCentral.Subscribe<int>(_ => {}, eventName: "TestEvent");
@@ -22,8 +21,7 @@ public class EventCentralTests
     public void TestUnsubscribe()
     {
         // Arrange
-        var eventCentral = EventCentral.Default;
-        eventCentral.UnsubscribeAll();
+        var eventCentral = new EventCentral();
         Action<int> handler = _ => {};
         var unsubscriber = eventCentral.Subscribe<int>(handler);
 
@@ -38,8 +36,7 @@ public class EventCentralTests
     public void TestUnsubscribeByDisposing()
     {
         // Arrange
-        var eventCentral = EventCentral.Default;
-        eventCentral.UnsubscribeAll();
+        var eventCentral = new EventCentral();
         Action<int> handler = _ => {};
         var unsubscriber = eventCentral.Subscribe<int>(handler);
 
@@ -54,8 +51,7 @@ public class EventCentralTests
     public void TestPublish()
     {
         // Arrange
-        var eventCentral = EventCentral.Default;
-        eventCentral.UnsubscribeAll();
+        var eventCentral = new EventCentral();
         int x = 0;
         eventCentral.Subscribe((int i) => x = i);
 
@@ -70,8 +66,7 @@ public class EventCentralTests
     public void TestUnsubscribeAll()
     {
         // Arrange
-        var eventCentral = EventCentral.Default;
-        eventCentral.UnsubscribeAll();
+        var eventCentral = new EventCentral();
         eventCentral.Subscribe<int>(_ => {});
 
         // Act
@@ -85,8 +80,7 @@ public class EventCentralTests
     public void TestUnsubscribeScope()
     {
         // Arrange
-        var eventCentral = EventCentral.Default;
-        eventCentral.UnsubscribeAll();
+        var eventCentral = new EventCentral();
         int x = 0;
         void Scoped()
         {
