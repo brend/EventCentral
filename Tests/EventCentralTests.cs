@@ -25,10 +25,26 @@ public class EventCentralTests
         var eventCentral = EventCentral.Default;
         eventCentral.UnsubscribeAll();
         Action<int> handler = _ => {};
-        eventCentral.Subscribe<int>(handler);
+        var unsubscriber = eventCentral.Subscribe<int>(handler);
 
         // Act
-        eventCentral.Unsubscribe(handler);
+        unsubscriber.Unsubscribe();
+
+        // Assert
+        Assert.Empty(eventCentral._subscribers);
+    }
+
+    [Fact]
+    public void TestUnsubscribeByDisposing()
+    {
+        // Arrange
+        var eventCentral = EventCentral.Default;
+        eventCentral.UnsubscribeAll();
+        Action<int> handler = _ => {};
+        var unsubscriber = eventCentral.Subscribe<int>(handler);
+
+        // Act
+        unsubscriber.Dispose();
 
         // Assert
         Assert.Empty(eventCentral._subscribers);

@@ -2,27 +2,6 @@ namespace Waldenware.Events;
 
 using EventName = string;
 
-[Flags]
-public enum SubscriptionOptions 
-{
-    None = 0,
-    RunOnUiThread = 1,
-}
-
-internal class Subscription
-{
-    public Type EventType { get; }
-    public WeakReference Handler { get; }
-    public SubscriptionOptions Options { get; }
-
-    public Subscription(Type eventType, Delegate handler, SubscriptionOptions options)
-    {
-        EventType = eventType;
-        Handler = new WeakReference(handler);
-        Options = options;
-    }
-}
-
 public sealed class EventCentral
 {
     private static readonly Lazy<EventCentral> _defaultInstance = new(() => new EventCentral());
@@ -35,13 +14,13 @@ public sealed class EventCentral
 
     public Action<Delegate> RunOnUiThread { get; set; } = _ => throw new InvalidOperationException("RunOnUiThread action not set");
 
-    public void Subscribe<TEvent>(Action<TEvent> handler, EventName? eventName = null, SubscriptionOptions options = SubscriptionOptions.None)
+    public IUnsubscriber Subscribe<TEvent>(Action<TEvent> handler, EventName? eventName = null, SubscriptionOptions options = SubscriptionOptions.None)
     {
         eventName ??= typeof(TEvent).Name;
-        SubscribeInternal(eventName, typeof(TEvent), handler, options);
+        return SubscribeInternal(eventName, typeof(TEvent), handler, options);
     }
 
-    private void SubscribeInternal(
+    private IUnsubscriber SubscribeInternal(
         string eventName, 
         Type eventType, 
         Delegate handler, 
@@ -55,19 +34,19 @@ public sealed class EventCentral
                 _subscribers.Add(eventName, handlers);
             }
 
-            handlers.Add(new Subscription(eventType, handler, options));
+            var subscription = new Subscription(eventType, handler, options);
+            handlers.Add(subscription);
+            return new Unsubscriber(this, eventName, subscription.Id);
         }
     }
 
-    public void Unsubscribe<TEvent>(Action<TEvent> handler)
+    internal void Unsubscribe(EventName eventName, Guid subscriptionId)
     {
-        var eventName = typeof(TEvent).Name;
-
         lock (_lock)
         {
             if (_subscribers.TryGetValue(eventName, out var handlers))
             {
-                handlers.RemoveAll(s => (s.Handler.Target as MulticastDelegate)?.Equals(handler) == true);
+                handlers.RemoveAll(x => x.Id == subscriptionId);
                 if (handlers.Count == 0)
                 {
                     _subscribers.Remove(eventName);
@@ -155,5 +134,4 @@ public sealed class EventCentral
     {
         handler.DynamicInvoke(eventArgs);
     }
-
 }
