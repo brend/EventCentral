@@ -74,7 +74,7 @@ public sealed class EventCentral
 
     public void Publish<TEvent>(TEvent @event, EventName? eventName = null)
     {
-        ArgumentNullException.ThrowIfNull(@event);
+        if (@event == null) throw new ArgumentNullException(nameof(@event));
 
         eventName ??= typeof(TEvent).Name;
 
